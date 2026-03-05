@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Text Diff — 文本对比工具</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:          #0d1117;
+  --surface:     #161b22;
+  --surface2:    #1c2128;
+  --border:      #30363d;
+  --border2:     #21262d;
+  --text:        #e6edf3;
+  --text2:       #8b949e;
+  --text3:       #484f58;
+  --brand:       #238636;
+  --brand-light: #2ea043;
+
+  /* Diff colors — GitHub exact */
+  --add-bg:       #0d4429;
+  --add-line:     #1a7f37;
+  --add-word:     #26a641;
+  --add-word-bg:  #1e4a2c;
+  --add-num-bg:   #0b3a22;
+  --add-num-text: #3fb950;
+  --add-border:   #2ea043;
+
+  --del-bg:       #3d1a1a;
+  --del-line:     #f85149;
+  --del-word:     #f85149;
+  --del-word-bg:  #5c1f1f;
+  --del-num-bg:   #3c1212;
+  --del-num-text: #f85149;
+  --del-border:   #f85149;
+
+  --ctx-bg:       #161b22;
+  --ctx-num-bg:   #161b22;
+  --ctx-num-text: #6e7681;
+
+  --hunk-bg:      #1c2d3f;
+  --hunk-text:    #79c0ff;
+
+  --radius: 8px;
+  --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --sans: 'Sora', system-ui, sans-serif;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+/* ── Header ── */
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+
+.logo-icon {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, #238636, #2ea043);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  font-family: var(--mono);
+}
+
+/* ── Main Layout ── */
+main {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 28px 24px 60px;
+}
+
+/* ── Section Labels ── */
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 10px;
+}
+
+/* ── Input Panels ── */
+.input-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.input-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.input-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.input-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+}
+
+.dot-old { width: 8px; height: 8px; border-radius: 50%; background: var(--del-line); }
+.dot-new { width: 8px; height: 8px; border-radius: 50%; background: var(--add-line); }
+
+.line-count {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: var(--mono);
+}
+
+.editor-wrap {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+textarea {
+  width: 100%;
+  min-height: 220px;
+  padding: 14px 14px 14px 58px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0 0 var(--radius) var(--radius);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.7;
+  resize: vertical;
+  outline: none;
+  tab-size: 2;
+  transition: border-color 0.15s;
+}
+
+textarea:focus {
+  border-color: #388bfd;
+  box-shadow: 0 0 0 3px rgba(56,139,253,0.12);
+}
+
+.line-numbers-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 44px;
+  padding: 14px 0;
+  pointer-events: none;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text3);
+  text-align: right;
+  padding-right: 10px;
+  border-right: 1px solid var(--border2);
+  overflow: hidden;
+  user-select: none;
+}
+
+.line-numbers-overlay span {
+  display: block;
+}
+
+/* ── Compare Button ── */
+.compare-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.btn-compare {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 28px;
+  background: var(--brand);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--sans);
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  letter-spacing: -0.1px;
+}
+
+.btn-compare:hover { background: var(--brand-light); }
+.btn-compare:active { transform: scale(0.98); }
+
+.btn-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  background: transparent;
+  color: var(--text2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: var(--sans);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-clear:hover { background: var(--surface2); color: var(--text); }
+
+/* ── Diff Result ── */
+.diff-section {
+  display: none;
+  animation: fadeIn 0.3s ease;
+}
+
+.diff-section.show { display: block; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ── Stats Bar ── */
+.diff-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  border-bottom: none;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-family: var(--mono);
+}
+
+.stat-add { color: var(--add-num-text); }
+.stat-del { color: var(--del-num-text); }
+.stat-ctx { color: var(--text2); }
+
+.stat-num {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.stat-divider {
+  width: 1px; height: 14px;
+  background: var(--border);
+  margin: 0 2px;
+}
+
+.view-toggle {
+  margin-left: auto;
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.view-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--sans);
+  background: transparent;
+  color: var(--text2);
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.view-btn + .view-btn { border-left: 1px solid var(--border); }
+.view-btn.active { background: var(--surface2); color: var(--text); }
+.view-btn:hover:not(.active) { background: var(--surface2); }
+
+/* ── Diff Table ── */
+.diff-container {
+  border: 1px solid var(--border);
+  border-radius: 0 0 var(--radius) var(--radius);
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+/* Unified view */
+.diff-table.unified .col-ln-old,
+.diff-table.unified .col-ln-new { width: 48px; }
+.diff-table.unified .col-sign   { width: 26px; }
+.diff-table.unified .col-code   { width: auto; }
+
+/* Split view */
+.diff-table.split .col-ln-old,
+.diff-table.split .col-ln-new { width: 44px; }
+.diff-table.split .col-sign   { width: 22px; }
+.diff-table.split .col-code   { width: auto; }
+
+/* ── Row types ── */
+tr.row-add td { background: var(--add-bg); }
+tr.row-del td { background: var(--del-bg); }
+tr.row-ctx td { background: var(--ctx-bg); }
+tr.row-hunk td { background: var(--hunk-bg); }
+
+tr.row-add td.ln { background: var(--add-num-bg); color: var(--add-num-text); }
+tr.row-del td.ln { background: var(--del-num-bg); color: var(--del-num-text); }
+tr.row-ctx td.ln { background: var(--ctx-num-bg); color: var(--ctx-num-text); }
+tr.row-hunk td.ln { background: var(--hunk-bg); }
+
+/* Line number cells */
+td.ln {
+  text-align: right;
+  padding: 1px 10px 1px 6px;
+  user-select: none;
+  vertical-align: top;
+  white-space: nowrap;
+  border-right: 1px solid var(--border2);
+  min-width: 44px;
+  color: var(--ctx-num-text);
+  font-size: 12px;
+}
+
+/* Sign cell */
+td.sign {
+  text-align: center;
+  padding: 1px 2px;
+  vertical-align: top;
+  user-select: none;
+  font-weight: 700;
+  width: 22px;
+}
+
+tr.row-add td.sign { color: var(--add-num-text); }
+tr.row-del td.sign { color: var(--del-num-text); }
+tr.row-ctx td.sign { color: var(--text3); }
+
+/* Code cell */
+td.code {
+  padding: 1px 16px 1px 4px;
+  vertical-align: top;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+tr.row-add td.code { color: #aff5b4; }
+tr.row-del td.code { color: #ffa198; }
+tr.row-ctx td.code { color: var(--text); }
+
+tr.row-hunk td {
+  padding: 4px 16px;
+  color: var(--hunk-text);
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* Word-level highlights */
+.word-add {
+  background: var(--add-word-bg);
+  border: 1px solid var(--add-word);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.word-del {
+  background: var(--del-word-bg);
+  border: 1px solid var(--del-word);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* Split view divider */
+.split-divider {
+  width: 1px;
+  background: var(--border);
+}
+
+/* Empty cell in split view */
+td.empty {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    rgba(255,255,255,0.015) 4px,
+    rgba(255,255,255,0.015) 8px
+  ) !important;
+}
+
+/* ── No diff ── */
+.no-diff {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  gap: 10px;
+}
+
+.no-diff-icon { font-size: 36px; }
+.no-diff-text { font-size: 14px; color: var(--text2); }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .input-grid { grid-template-columns: 1fr; }
+  .view-toggle { display: none; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⊕</div>
+    Diff Viewer
+  </div>
+  <div class="header-actions">
+    <span class="badge">v1.0</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- Input Area -->
+  <div class="input-grid">
+    <!-- Original -->
+    <div class="input-panel">
+      <div class="input-header">
+        <div class="input-title">
+          <span class="dot-old"></span>
+          原始文本 (Original)
+        </div>
+        <span class="line-count" id="countA">0 行</span>
+      </div>
+      <div class="editor-wrap">
+        <div class="line-numbers-overlay" id="lnA"></div>
+        <textarea id="textA" spellcheck="false"
+          placeholder="在此粘贴原始文本…
+
+The quick brown fox jumps over the lazy dog.
+Hello, world!
+This line will be removed.
+Another line here.
+Final line of text."></textarea>
+      </div>
+    </div>
+
+    <!-- Modified -->
+    <div class="input-panel">
+      <div class="input-header">
+        <div class="input-title">
+          <span class="dot-new"></span>
+          修改文本 (Modified)
+        </div>
+        <span class="line-count" id="countB">0 行</span>
+      </div>
+      <div class="editor-wrap">
+        <div class="line-numbers-overlay" id="lnB"></div>
+        <textarea id="textB" spellcheck="false"
+          placeholder="在此粘贴修改后的文本…
+
+The quick brown fox jumps over the lazy dog.
+Hello, world! This line was modified.
+A brand new line was added here.
+Another line here.
+Final line of text."></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Action Bar -->
+  <div class="compare-bar">
+    <button class="btn-compare" onclick="runDiff()">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M8.75 1.75a.75.75 0 0 0-1.5 0V5H4a.75.75 0 0 0 0 1.5h3.25v3.25a.75.75 0 0 0 1.5 0V6.5H12A.75.75 0 0 0 12 5H8.75V1.75Z"/>
+        <path d="M1.5 9.25a.75.75 0 0 1 .75-.75H12a.75.75 0 0 1 0 1.5H2.25a.75.75 0 0 1-.75-.75Z"/>
+      </svg>
+      对比文本
+    </button>
+    <button class="btn-clear" onclick="clearAll()">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M11 1.75V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675l.66 6.6a.25.25 0 0 0 .249.225h5.19a.25.25 0 0 0 .249-.225l.66-6.6a.75.75 0 0 1 1.492.149l-.66 6.6A1.748 1.748 0 0 1 10.595 15h-5.19a1.75 1.75 0 0 1-1.741-1.575l-.66-6.6a.75.75 0 1 1 1.492-.15Z"/>
+      </svg>
+      清空
+    </button>
+  </div>
+
+  <!-- Diff Output -->
+  <div class="diff-section" id="diffSection">
+
+    <!-- Stats -->
+    <div class="diff-stats" id="diffStats"></div>
+
+    <!-- Diff Content -->
+    <div class="diff-container" id="diffContainer"></div>
+
+  </div>
+
+</main>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+// LINE NUMBER OVERLAYS
+// ══════════════════════════════════════════════════════════════════════════════
+
+function updateLineNumbers(textarea, overlay, counter) {
+  const lines = textarea.value.split('\n');
+  const count = lines.length;
+  overlay.innerHTML = lines.map((_, i) => `<span>${i + 1}</span>`).join('');
+  counter.textContent = count + ' 行';
+  // sync scroll
+  overlay.style.top = (-textarea.scrollTop) + 'px';
+}
+
+const textA = document.getElementById('textA');
+const textB = document.getElementById('textB');
+const lnA   = document.getElementById('lnA');
+const lnB   = document.getElementById('lnB');
+const cntA  = document.getElementById('countA');
+const cntB  = document.getElementById('countB');
+
+function syncLN(ta, ln, cnt) {
+  updateLineNumbers(ta, ln, cnt);
+}
+
+['input','keyup','paste','change'].forEach(ev => {
+  textA.addEventListener(ev, () => syncLN(textA, lnA, cntA));
+  textB.addEventListener(ev, () => syncLN(textB, lnB, cntB));
+});
+textA.addEventListener('scroll', () => { lnA.style.top = (-textA.scrollTop) + 'px'; });
+textB.addEventListener('scroll', () => { lnB.style.top = (-textB.scrollTop) + 'px'; });
+
+// Init with placeholder counts
+syncLN(textA, lnA, cntA);
+syncLN(textB, lnB, cntB);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MYERS DIFF ALGORITHM  (line-level)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function myersDiff(a, b) {
+  const n = a.length, m = b.length;
+  const max = n + m;
+  const v = new Array(2 * max + 1).fill(0);
+  const trace = [];
+
+  for (let d = 0; d <= max; d++) {
+    trace.push([...v]);
+    for (let k = -d; k <= d; k += 2) {
+      let x;
+      if (k === -d || (k !== d && v[k - 1 + max] < v[k + 1 + max])) {
+        x = v[k + 1 + max];
+      } else {
+        x = v[k - 1 + max] + 1;
+      }
+      let y = x - k;
+      while (x < n && y < m && a[x] === b[y]) { x++; y++; }
+      v[k + max] = x;
+      if (x >= n && y >= m) {
+        return backtrack(trace, a, b, max);
+      }
+    }
+  }
+  return backtrack(trace, a, b, max);
+}
+
+function backtrack(trace, a, b, max) {
+  const ops = [];
+  let x = a.length, y = b.length;
+  for (let d = trace.length - 1; d >= 0; d--) {
+    const v = trace[d];
+    const k = x - y;
+    let prevK;
+    if (k === -d || (k !== d && v[k - 1 + max] < v[k + 1 + max])) {
+      prevK = k + 1;
+    } else {
+      prevK = k - 1;
+    }
+    const prevX = v[prevK + max];
+    const prevY = prevX - prevK;
+    while (x > prevX && y > prevY) { ops.push({ type: 'eq', a: x - 1, b: y - 1 }); x--; y--; }
+    if (d > 0) {
+      if (x > prevX) { ops.push({ type: 'del', a: x - 1, b: y }); x--; }
+      else            { ops.push({ type: 'ins', a: x, b: y - 1 }); y--; }
+    }
+  }
+  return ops.reverse();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// WORD-LEVEL DIFF  (for inline highlights)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function wordDiff(oldLine, newLine) {
+  const tokenize = s => s.match(/\S+|\s+/g) || [];
+  const aT = tokenize(oldLine);
+  const bT = tokenize(newLine);
+  const ops = myersDiff(aT, bT);
+
+  let oldHtml = '', newHtml = '';
+  for (const op of ops) {
+    if (op.type === 'eq') {
+      const w = escHtml(aT[op.a]);
+      oldHtml += w; newHtml += w;
+    } else if (op.type === 'del') {
+      oldHtml += `<span class="word-del">${escHtml(aT[op.a])}</span>`;
+    } else {
+      newHtml += `<span class="word-add">${escHtml(bT[op.b])}</span>`;
+    }
+  }
+  return { oldHtml, newHtml };
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BUILD DIFF HUNKS
+// ══════════════════════════════════════════════════════════════════════════════
+
+const CONTEXT = 3;
+
+function buildHunks(ops, aLines, bLines) {
+  // Collect changed indices
+  const changed = new Set();
+  for (const op of ops) {
+    if (op.type !== 'eq') changed.add(op.type === 'del' ? op.a : op.b + aLines.length);
+  }
+
+  // Group ops into hunks with context
+  const segments = [];
+  let i = 0;
+  while (i < ops.length) {
+    if (ops[i].type === 'eq') { i++; continue; }
+    // find run of changes
+    let j = i;
+    while (j < ops.length && ops[j].type !== 'eq') j++;
+    // expand context
+    const ctxStart = Math.max(0, i - CONTEXT);
+    const ctxEnd   = Math.min(ops.length - 1, j + CONTEXT - 1);
+    segments.push({ start: ctxStart, end: ctxEnd });
+    i = j + 1;
+  }
+
+  if (segments.length === 0) return null; // identical
+
+  // Merge overlapping segments
+  const merged = [segments[0]];
+  for (let k = 1; k < segments.length; k++) {
+    const last = merged[merged.length - 1];
+    if (segments[k].start <= last.end + 1) {
+      last.end = Math.max(last.end, segments[k].end);
+    } else {
+      merged.push(segments[k]);
+    }
+  }
+
+  // Find adjacent del/ins pairs for word-diff
+  const pairMap = new Map();
+  let di = 0;
+  while (di < ops.length) {
+    if (ops[di].type === 'del') {
+      let ni = di + 1;
+      while (ni < ops.length && ops[ni].type === 'ins') {
+        // pair ops[di] del with ops[ni] ins
+        if (!pairMap.has(di)) pairMap.set(di, []);
+        pairMap.get(di).push(ni);
+        ni++;
+      }
+    }
+    di++;
+  }
+
+  // Build rows
+  const hunks = [];
+  for (const seg of merged) {
+    const rows = [];
+    let aLn = null, bLn = null;
+
+    for (let idx = seg.start; idx <= seg.end; idx++) {
+      const op = ops[idx];
+      if (!op) continue;
+      if (op.type === 'eq') {
+        rows.push({ type: 'ctx', aLn: op.a + 1, bLn: op.b + 1, text: aLines[op.a] });
+        if (aLn === null) aLn = op.a + 1;
+        if (bLn === null) bLn = op.b + 1;
+      } else if (op.type === 'del') {
+        rows.push({ type: 'del', aLn: op.a + 1, bLn: null, text: aLines[op.a], raw: aLines[op.a] });
+        if (aLn === null) aLn = op.a + 1;
+      } else {
+        rows.push({ type: 'ins', aLn: null, bLn: op.b + 1, text: bLines[op.b], raw: bLines[op.b] });
+        if (bLn === null) bLn = op.b + 1;
+      }
+    }
+
+    // Apply word-level diff to adjacent del/ins pairs
+    const delRows = rows.filter(r => r.type === 'del');
+    const insRows = rows.filter(r => r.type === 'ins');
+    const pairCount = Math.min(delRows.length, insRows.length);
+    for (let p = 0; p < pairCount; p++) {
+      const wd = wordDiff(delRows[p].raw || '', insRows[p].raw || '');
+      delRows[p].html = wd.oldHtml;
+      insRows[p].html = wd.newHtml;
+    }
+
+    hunks.push({ aLn, bLn, rows });
+  }
+
+  return hunks;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════════════════════════════════════════
+
+let currentMode = 'unified';
+
+function renderUnified(hunks, totalAdded, totalDeleted, totalCtx) {
+  let html = `<table class="diff-table unified">
+    <colgroup>
+      <col class="col-ln-old"><col class="col-ln-new">
+      <col class="col-sign"><col class="col-code">
+    </colgroup>
+    <tbody>`;
+
+  for (const hunk of hunks) {
+    // Hunk header
+    html += `<tr class="row-hunk">
+      <td class="ln" colspan="2"></td>
+      <td class="sign"></td>
+      <td class="code">@@ 原始行 ${hunk.aLn} · 修改行 ${hunk.bLn} @@</td>
+    </tr>`;
+
+    for (const row of hunk.rows) {
+      if (row.type === 'ctx') {
+        html += `<tr class="row-ctx">
+          <td class="ln">${row.aLn}</td>
+          <td class="ln">${row.bLn}</td>
+          <td class="sign"> </td>
+          <td class="code">${escHtml(row.text)}</td>
+        </tr>`;
+      } else if (row.type === 'del') {
+        const content = row.html || escHtml(row.text);
+        html += `<tr class="row-del">
+          <td class="ln">${row.aLn}</td>
+          <td class="ln"></td>
+          <td class="sign">−</td>
+          <td class="code">${content}</td>
+        </tr>`;
+      } else {
+        const content = row.html || escHtml(row.text);
+        html += `<tr class="row-add">
+          <td class="ln"></td>
+          <td class="ln">${row.bLn}</td>
+          <td class="sign">+</td>
+          <td class="code">${content}</td>
+        </tr>`;
+      }
+    }
+  }
+
+  html += '</tbody></table>';
+  return html;
+}
+
+function renderSplit(hunks) {
+  let html = `<table class="diff-table split">
+    <colgroup>
+      <col class="col-ln-old"><col class="col-sign"><col class="col-code">
+      <col style="width:1px">
+      <col class="col-ln-new"><col class="col-sign"><col class="col-code">
+    </colgroup>
+    <tbody>`;
+
+  for (const hunk of hunks) {
+    html += `<tr class="row-hunk">
+      <td class="ln" colspan="3">@@ 原始行 ${hunk.aLn} @@</td>
+      <td class="split-divider"></td>
+      <td class="ln" colspan="3">@@ 修改行 ${hunk.bLn} @@</td>
+    </tr>`;
+
+    // Pair up del/ins for split display
+    const left  = hunk.rows.filter(r => r.type === 'del' || r.type === 'ctx');
+    const right = hunk.rows.filter(r => r.type === 'ins' || r.type === 'ctx');
+
+    // Simple pairing: iterate through rows, match del with ins
+    const lRows = [], rRows = [];
+    let li = 0, ri = 0;
+    const all = hunk.rows;
+
+    // Group consecutive del/ins blocks
+    let idx2 = 0;
+    while (idx2 < all.length) {
+      if (all[idx2].type === 'ctx') {
+        lRows.push(all[idx2]);
+        rRows.push(all[idx2]);
+        idx2++;
+      } else {
+        // Collect block of del + ins
+        const dels = [], ins2 = [];
+        while (idx2 < all.length && all[idx2].type === 'del') { dels.push(all[idx2]); idx2++; }
+        while (idx2 < all.length && all[idx2].type === 'ins') { ins2.push(all[idx2]); idx2++; }
+        const maxLen = Math.max(dels.length, ins2.length);
+        for (let p = 0; p < maxLen; p++) {
+          lRows.push(dels[p] || null);
+          rRows.push(ins2[p] || null);
+        }
+      }
+    }
+
+    for (let r = 0; r < lRows.length; r++) {
+      const l = lRows[r], ri2 = rRows[r];
+      let leftHtml = '', rightHtml = '';
+
+      if (l && l.type === 'del') {
+        const content = l.html || escHtml(l.text);
+        leftHtml = `<tr class="row-del">
+          <td class="ln">${l.aLn}</td>
+          <td class="sign">−</td>
+          <td class="code">${content}</td>`;
+      } else if (l && l.type === 'ctx') {
+        leftHtml = `<tr class="row-ctx">
+          <td class="ln">${l.aLn}</td>
+          <td class="sign"> </td>
+          <td class="code">${escHtml(l.text)}</td>`;
+      } else {
+        leftHtml = `<tr class="row-ctx">
+          <td class="ln empty"></td>
+          <td class="sign empty"></td>
+          <td class="code empty"></td>`;
+      }
+
+      if (ri2 && ri2.type === 'ins') {
+        const content = ri2.html || escHtml(ri2.text);
+        rightHtml = `<td class="split-divider"></td>
+          <td class="ln row-add">${ri2.bLn}</td>
+          <td class="sign row-add" style="background:var(--add-bg);color:var(--add-num-text)">+</td>
+          <td class="code row-add" style="background:var(--add-bg);color:#aff5b4">${content}</td>
+        </tr>`;
+      } else if (ri2 && ri2.type === 'ctx') {
+        rightHtml = `<td class="split-divider"></td>
+          <td class="ln">${ri2.bLn}</td>
+          <td class="sign"> </td>
+          <td class="code">${escHtml(ri2.text)}</td>
+        </tr>`;
+      } else {
+        rightHtml = `<td class="split-divider"></td>
+          <td class="ln empty" style="background:var(--del-num-bg)"></td>
+          <td class="sign empty" style="background:var(--del-bg)"></td>
+          <td class="code empty" style="background:var(--del-bg)"></td>
+        </tr>`;
+      }
+
+      html += leftHtml + rightHtml;
+    }
+  }
+
+  html += '</tbody></table>';
+  return html;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MAIN DIFF RUNNER
+// ══════════════════════════════════════════════════════════════════════════════
+
+let lastOps = null, lastA = null, lastB = null, lastHunks = null;
+
+function runDiff() {
+  const a = textA.value;
+  const b = textB.value;
+
+  const aLines = a.split('\n');
+  const bLines = b.split('\n');
+
+  const ops = myersDiff(aLines, bLines);
+  lastOps = ops; lastA = aLines; lastB = bLines;
+
+  let added = 0, deleted = 0, unchanged = 0;
+  for (const op of ops) {
+    if (op.type === 'ins') added++;
+    else if (op.type === 'del') deleted++;
+    else unchanged++;
+  }
+
+  const hunks = buildHunks(ops, aLines, bLines);
+  lastHunks = hunks;
+
+  const section   = document.getElementById('diffSection');
+  const container = document.getElementById('diffContainer');
+  const statsEl   = document.getElementById('diffStats');
+
+  section.classList.add('show');
+
+  // Stats bar
+  statsEl.innerHTML = `
+    <div class="stat-item stat-add">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z"/>
+      </svg>
+      <span class="stat-num">${added}</span> 行新增
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item stat-del">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M2 7.75A.75.75 0 0 1 2.75 7h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 7.75Z"/>
+      </svg>
+      <span class="stat-num">${deleted}</span> 行删除
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item stat-ctx">
+      <span class="stat-num">${unchanged}</span> 行未变
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item stat-ctx">
+      <span class="stat-num">${aLines.length}</span> → <span class="stat-num">${bLines.length}</span> 行
+    </div>
+    <div class="view-toggle">
+      <button class="view-btn ${currentMode === 'unified' ? 'active' : ''}" onclick="setMode('unified')">Unified</button>
+      <button class="view-btn ${currentMode === 'split'   ? 'active' : ''}" onclick="setMode('split')">Split</button>
+    </div>
+  `;
+
+  if (!hunks) {
+    container.innerHTML = `
+      <div class="no-diff">
+        <div class="no-diff-icon">✓</div>
+        <div class="no-diff-text">两段文本完全一致，没有差异。</div>
+      </div>`;
+    return;
+  }
+
+  renderMode(hunks, added, deleted, unchanged);
+  section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderMode(hunks, added, deleted, unchanged) {
+  const container = document.getElementById('diffContainer');
+  if (currentMode === 'unified') {
+    container.innerHTML = renderUnified(hunks, added, deleted, unchanged);
+  } else {
+    container.innerHTML = renderSplit(hunks);
+  }
+}
+
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.view-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.toLowerCase() === mode);
+  });
+  if (lastHunks) {
+    let a2=0,d2=0;
+    for(const op of lastOps){if(op.type==='ins')a2++;else if(op.type==='del')d2++;}
+    renderMode(lastHunks, a2, d2, 0);
+  }
+}
+
+function clearAll() {
+  textA.value = '';
+  textB.value = '';
+  syncLN(textA, lnA, cntA);
+  syncLN(textB, lnB, cntB);
+  document.getElementById('diffSection').classList.remove('show');
+}
+
+// Init line numbers on load
+window.addEventListener('load', () => {
+  syncLN(textA, lnA, cntA);
+  syncLN(textB, lnB, cntB);
+});
+
+// Allow Ctrl+Enter to trigger diff
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runDiff();
+});
+</script>
+</body>
+</html>
