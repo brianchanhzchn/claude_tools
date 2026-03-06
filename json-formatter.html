@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JSON 格式化工具</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0e0e12;
+    --surface: #16161d;
+    --surface2: #1e1e28;
+    --border: #2a2a38;
+    --accent: #7c6af7;
+    --accent2: #4ecdc4;
+    --accent3: #f7c26a;
+    --red: #ff6b6b;
+    --green: #6bffb8;
+    --text: #e8e8f0;
+    --muted: #5a5a78;
+    --key: #c792ea;
+    --str: #c3e88d;
+    --num: #f78c6c;
+    --bool: #89ddff;
+    --null: #ff6b6b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 30px; height: 30px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    color: white;
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn {
+    padding: 7px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--border); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
+  .btn.primary:hover { opacity: 0.85; }
+  .btn.danger { border-color: var(--red); color: var(--red); }
+  .btn.danger:hover { background: rgba(255,107,107,0.1); }
+  .btn.success { border-color: var(--green); color: var(--green); }
+  .btn.success:hover { background: rgba(107,255,184,0.1); }
+
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    gap: 0;
+  }
+
+  .pane {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 200px;
+  }
+
+  .pane-left { width: 45%; }
+  .pane-right { flex: 1; }
+
+  .pane-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    height: 42px;
+    min-height: 42px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .pane-header .pane-actions {
+    display: flex; gap: 6px;
+  }
+
+  .pane-body {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+  }
+
+  .editor-wrap {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .line-nums {
+    flex-shrink: 0;
+    width: 44px;
+    padding: 16px 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+    text-align: right;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--muted);
+    user-select: none;
+  }
+
+  .line-nums span {
+    display: block;
+    padding-right: 10px;
+    font-size: 11px;
+  }
+
+  textarea {
+    flex: 1;
+    height: 100%;
+    background: var(--bg);
+    border: none;
+    outline: none;
+    resize: none;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    padding: 16px;
+    tab-size: 2;
+    overflow: auto;
+  }
+
+  .output-scroll {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    display: flex;
+  }
+
+  .tree-line-nums {
+    flex-shrink: 0;
+    width: 44px;
+    padding: 16px 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    text-align: right;
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--muted);
+    user-select: none;
+    position: sticky;
+    left: 0;
+    z-index: 1;
+  }
+
+  .tree-line-nums span {
+    display: block;
+    padding-right: 10px;
+    height: calc(13px * 1.7);
+  }
+
+  .error-banner {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(255, 107, 107, 0.1);
+    border-top: 1px solid rgba(255,107,107,0.3);
+    border-bottom: 1px solid rgba(255,107,107,0.3);
+    color: var(--red);
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .error-banner.visible { display: flex; }
+
+  .divider {
+    width: 4px;
+    background: var(--border);
+    cursor: col-resize;
+    flex-shrink: 0;
+    transition: background 0.15s;
+    position: relative;
+  }
+  .divider:hover, .divider.dragging { background: var(--accent); }
+  .divider::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 2px; height: 40px;
+    background: inherit;
+    border-radius: 2px;
+  }
+
+  /* Tree View */
+  .tree-view {
+    padding: 16px;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  .tree-node {
+    position: relative;
+  }
+
+  .tree-row {
+    display: flex;
+    align-items: flex-start;
+    cursor: default;
+    border-radius: 4px;
+    padding: 1px 4px;
+    transition: background 0.1s;
+  }
+  .tree-row:hover { background: rgba(255,255,255,0.04); }
+
+  .toggle-btn {
+    width: 18px; height: 18px;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: var(--muted);
+    flex-shrink: 0;
+    margin-top: 2px;
+    border-radius: 3px;
+    transition: color 0.15s, background 0.15s;
+    font-size: 10px;
+    user-select: none;
+  }
+  .toggle-btn:hover { color: var(--accent); background: rgba(124,106,247,0.1); }
+
+  .toggle-spacer {
+    width: 18px;
+    flex-shrink: 0;
+    display: inline-block;
+  }
+
+  .tree-children {
+    padding-left: 22px;
+    border-left: 1px solid var(--border);
+    margin-left: 9px;
+  }
+  .tree-children.hidden { display: none; }
+
+  .k { color: var(--key); }
+  .s { color: var(--str); }
+  .n { color: var(--num); }
+  .b { color: var(--bool); }
+  .nl { color: var(--null); }
+  .p { color: var(--muted); }
+  .bracket { color: var(--muted); }
+
+  .collapsed-summary {
+    color: var(--muted);
+    font-style: italic;
+    font-size: 12px;
+  }
+  .collapsed-count {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 6px;
+    height: 18px;
+    background: rgba(124,106,247,0.2);
+    border: 1px solid rgba(124,106,247,0.4);
+    border-radius: 10px;
+    color: var(--accent);
+    font-size: 11px;
+    font-style: normal;
+    margin: 0 4px;
+    cursor: pointer;
+  }
+  .collapsed-count:hover { background: rgba(124,106,247,0.35); }
+
+  .empty-state {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--muted);
+    pointer-events: none;
+  }
+  .empty-state .icon { font-size: 40px; opacity: 0.3; }
+  .empty-state p { font-size: 13px; }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+  }
+  .status-dot.ok { background: var(--green); box-shadow: 0 0 8px rgba(107,255,184,0.5); }
+  .status-dot.err { background: var(--red); box-shadow: 0 0 8px rgba(255,107,107,0.5); }
+
+  .copied-toast {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--green);
+    color: var(--green);
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.25s;
+    pointer-events: none;
+    z-index: 999;
+  }
+  .copied-toast.show {
+    opacity: 1; transform: translateY(0);
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">{ }</div>
+    JSON 格式化工具
+  </div>
+  <div class="header-actions">
+    <button class="btn" onclick="loadExample()">📄 示例数据</button>
+    <button class="btn danger" onclick="clearAll()">✕ 清空</button>
+    <button class="btn success" onclick="copyOutput()">⎘ 复制输出</button>
+  </div>
+</header>
+
+<div class="main" id="main">
+  <!-- Left Pane -->
+  <div class="pane pane-left" id="paneLeft">
+    <div class="pane-header">
+      <span>原始输入</span>
+      <span id="statusLeft" style="display:flex;align-items:center;gap:6px;">
+        <span class="status-dot" id="dotLeft"></span>
+        <span id="labelLeft">等待输入</span>
+      </span>
+    </div>
+    <div class="error-banner" id="errorBanner">
+      <span>⚠</span>
+      <span id="errorMsg">JSON 解析错误</span>
+    </div>
+    <div class="pane-body">
+      <div class="editor-wrap">
+        <div class="line-nums" id="lineNums"><span>1</span></div>
+        <textarea id="inputArea" placeholder='在此粘贴 JSON...' spellcheck="false" oninput="onInput()" onscroll="syncScroll()"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider" id="divider"></div>
+
+  <!-- Right Pane -->
+  <div class="pane pane-right" id="paneRight">
+    <div class="pane-header">
+      <span>格式化输出</span>
+      <div class="pane-actions">
+        <button class="btn" onclick="expandAll()">⊞ 全部展开</button>
+        <button class="btn" onclick="collapseAll()">⊟ 全部折叠</button>
+      </div>
+    </div>
+    <div class="pane-body" id="outputArea">
+      <div class="empty-state" id="emptyState">
+        <div class="icon">{ }</div>
+        <p>输入 JSON 后将在此显示格式化结果</p>
+      </div>
+      <div class="output-scroll" id="outputScroll" style="display:none;">
+        <div class="tree-line-nums" id="treeLineNums"></div>
+        <div class="tree-view" id="treeView"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="copied-toast" id="toast">✓ 已复制到剪贴板</div>
+
+<script>
+let parsedData = null;
+let nodeCounter = 0;
+let lineCounter = 0;
+
+// ──────────────────────────────────────────────────────────────
+// Input / parsing
+// ──────────────────────────────────────────────────────────────
+function onInput() {
+  const raw = document.getElementById('inputArea').value;
+  const dot = document.getElementById('dotLeft');
+  const label = document.getElementById('labelLeft');
+  const errBanner = document.getElementById('errorBanner');
+  const errMsg = document.getElementById('errorMsg');
+  const treeView = document.getElementById('treeView');
+  const emptyState = document.getElementById('emptyState');
+  const outputScroll = document.getElementById('outputScroll');
+
+  // Update left line numbers
+  updateLeftLineNums(raw);
+
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    dot.className = 'status-dot';
+    label.textContent = '等待输入';
+    errBanner.classList.remove('visible');
+    treeView.innerHTML = '';
+    emptyState.style.display = 'flex';
+    outputScroll.style.display = 'none';
+    parsedData = null;
+    return;
+  }
+
+  try {
+    parsedData = JSON.parse(trimmed);
+    dot.className = 'status-dot ok';
+    label.textContent = '✓ 有效 JSON';
+    errBanner.classList.remove('visible');
+    emptyState.style.display = 'none';
+    outputScroll.style.display = 'flex';
+    Object.keys(nodeMap).forEach(k => delete nodeMap[k]);
+    nodeCounter = 0;
+    lineCounter = 0;
+    treeView.innerHTML = '';
+    treeView.appendChild(renderNode(parsedData, null, false));
+    updateTreeLineNums();
+  } catch (e) {
+    parsedData = null;
+    dot.className = 'status-dot err';
+    label.textContent = '✗ 无效 JSON';
+    errBanner.classList.add('visible');
+    errMsg.textContent = e.message;
+    treeView.innerHTML = '';
+    emptyState.style.display = 'flex';
+    outputScroll.style.display = 'none';
+  }
+}
+
+function updateLeftLineNums(text) {
+  const lines = (text || '').split('\n');
+  const container = document.getElementById('lineNums');
+  container.innerHTML = lines.map((_, i) => `<span>${i + 1}</span>`).join('');
+}
+
+function syncScroll() {
+  const ta = document.getElementById('inputArea');
+  document.getElementById('lineNums').scrollTop = ta.scrollTop;
+}
+
+function updateTreeLineNums() {
+  const treeView = document.getElementById('treeView');
+  const lineNumsEl = document.getElementById('treeLineNums');
+  const rows = treeView.querySelectorAll('.tree-row');
+  lineNumsEl.innerHTML = Array.from({length: rows.length}, (_, i) =>
+    `<span>${i + 1}</span>`
+  ).join('');
+}
+
+// Re-run line nums after any toggle (collapse/expand changes visible rows)
+
+
+// ──────────────────────────────────────────────────────────────
+// Tree rendering
+// ──────────────────────────────────────────────────────────────
+function renderNode(value, key, isLast) {
+  const id = 'n' + (++nodeCounter);
+  const wrapper = document.createElement('div');
+  wrapper.className = 'tree-node';
+
+  if (value !== null && typeof value === 'object') {
+    const isArray = Array.isArray(value);
+    const entries = isArray ? value : Object.entries(value);
+    const count = isArray ? value.length : entries.length;
+    const openBracket = isArray ? '[' : '{';
+    const closeBracket = isArray ? ']' : '}';
+
+    // Row
+    const row = document.createElement('div');
+    row.className = 'tree-row';
+
+    const toggle = document.createElement('span');
+    toggle.className = 'toggle-btn';
+    toggle.innerHTML = '▾';
+    toggle.title = '折叠';
+
+    const keySpan = key !== null
+      ? `<span class="k">"${escHtml(key)}"</span><span class="p">: </span>`
+      : '';
+
+    const summary = document.createElement('span');
+    summary.innerHTML = keySpan + `<span class="bracket">${openBracket}</span>`;
+
+    // collapsed summary inline
+    const collapsedInfo = document.createElement('span');
+    collapsedInfo.style.display = 'none';
+    if (isArray) {
+      collapsedInfo.innerHTML = `<span class="collapsed-count" onclick="toggleNode('${id}',event)">${count} items</span><span class="bracket">${closeBracket}</span>`;
+    } else {
+      collapsedInfo.innerHTML = `<span class="collapsed-summary"> … </span><span class="bracket">${closeBracket}</span>`;
+    }
+
+    const trailingComma = isLast ? '' : '<span class="p">,</span>';
+
+    row.appendChild(toggle);
+    row.appendChild(summary);
+    row.appendChild(collapsedInfo);
+
+    // Children container
+    const children = document.createElement('div');
+    children.className = 'tree-children';
+    children.id = id;
+
+    if (isArray) {
+      value.forEach((item, i) => {
+        children.appendChild(renderNode(item, null, i === value.length - 1));
+      });
+    } else {
+      const ents = Object.entries(value);
+      ents.forEach(([k, v], i) => {
+        children.appendChild(renderNode(v, k, i === ents.length - 1));
+      });
+    }
+
+    // Closing bracket row
+    const closeRow = document.createElement('div');
+    closeRow.className = 'tree-row';
+    closeRow.innerHTML = `<span class="toggle-spacer"></span><span class="bracket">${closeBracket}</span>${trailingComma}`;
+
+    toggle.addEventListener('click', (e) => { e.stopPropagation(); toggleNode(id); });
+    row.addEventListener('click', () => toggleNode(id));
+
+    wrapper.appendChild(row);
+    wrapper.appendChild(children);
+    wrapper.appendChild(closeRow);
+
+    // store refs
+    toggle._childId = id;
+    toggle._isArray = isArray;
+    toggle._count = count;
+    toggle._summary = summary;
+    toggle._collapsedInfo = collapsedInfo;
+    toggle._closeRow = closeRow;
+    toggle._collapsed = false;
+
+    // Map id -> toggle for bulk ops
+    nodeMap[id] = toggle;
+
+  } else {
+    // Primitive
+    const row = document.createElement('div');
+    row.className = 'tree-row';
+    const trailingComma = isLast ? '' : '<span class="p">,</span>';
+    const keySpan = key !== null
+      ? `<span class="k">"${escHtml(key)}"</span><span class="p">: </span>`
+      : '';
+    row.innerHTML = `<span class="toggle-spacer"></span>${keySpan}${renderPrimitive(value)}${trailingComma}`;
+    wrapper.appendChild(row);
+  }
+
+  return wrapper;
+}
+
+const nodeMap = {};
+
+function renderPrimitive(v) {
+  if (v === null) return `<span class="nl">null</span>`;
+  if (typeof v === 'boolean') return `<span class="b">${v}</span>`;
+  if (typeof v === 'number') return `<span class="n">${v}</span>`;
+  if (typeof v === 'string') return `<span class="s">"${escHtml(v)}"</span>`;
+  return `<span>${escHtml(String(v))}</span>`;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toggleNode(id, e) {
+  if (e) e.stopPropagation();
+  const toggle = nodeMap[id];
+  if (!toggle) return;
+  const childEl = document.getElementById(id);
+  const collapsed = !toggle._collapsed;
+  toggle._collapsed = collapsed;
+
+  if (collapsed) {
+    childEl.classList.add('hidden');
+    toggle._closeRow.style.display = 'none';
+    toggle._collapsedInfo.style.display = 'inline';
+    toggle.innerHTML = '▸';
+    toggle.title = '展开';
+  } else {
+    childEl.classList.remove('hidden');
+    toggle._closeRow.style.display = '';
+    toggle._collapsedInfo.style.display = 'none';
+    toggle.innerHTML = '▾';
+    toggle.title = '折叠';
+  }
+  // Refresh right-side line numbers
+  updateTreeLineNums();
+}
+
+function collapseAll() {
+  Object.keys(nodeMap).forEach(id => {
+    const toggle = nodeMap[id];
+    if (!toggle._collapsed) {
+      const childEl = document.getElementById(id);
+      toggle._collapsed = true;
+      childEl.classList.add('hidden');
+      toggle._closeRow.style.display = 'none';
+      toggle._collapsedInfo.style.display = 'inline';
+      toggle.innerHTML = '▸';
+      toggle.title = '展开';
+    }
+  });
+  updateTreeLineNums();
+}
+
+function expandAll() {
+  Object.keys(nodeMap).forEach(id => {
+    const toggle = nodeMap[id];
+    if (toggle._collapsed) {
+      const childEl = document.getElementById(id);
+      toggle._collapsed = false;
+      childEl.classList.remove('hidden');
+      toggle._closeRow.style.display = '';
+      toggle._collapsedInfo.style.display = 'none';
+      toggle.innerHTML = '▾';
+      toggle.title = '折叠';
+    }
+  });
+  updateTreeLineNums();
+}
+
+// ──────────────────────────────────────────────────────────────
+// Actions
+// ──────────────────────────────────────────────────────────────
+function clearAll() {
+  document.getElementById('inputArea').value = '';
+  document.getElementById('lineNums').innerHTML = '<span>1</span>';
+  Object.keys(nodeMap).forEach(k => delete nodeMap[k]);
+  onInput();
+}
+
+function copyOutput() {
+  if (!parsedData) return;
+  const text = JSON.stringify(parsedData, null, 2);
+  navigator.clipboard.writeText(text).then(() => showToast());
+}
+
+function showToast() {
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function loadExample() {
+  const example = {
+    "name": "JSON格式化工具",
+    "version": "1.0.0",
+    "features": ["折叠展开", "数组计数", "实时解析", "语法高亮"],
+    "config": {
+      "theme": "dark",
+      "fontSize": 13,
+      "autoFormat": true
+    },
+    "users": [
+      { "id": 1, "name": "Alice", "role": "admin", "active": true },
+      { "id": 2, "name": "Bob",   "role": "viewer", "active": false }
+    ],
+    "meta": {
+      "created": "2026-03-07",
+      "license": null,
+      "tags": ["json", "formatter", "tool"]
+    }
+  };
+  document.getElementById('inputArea').value = JSON.stringify(example);
+  onInput();
+}
+
+// ──────────────────────────────────────────────────────────────
+// Resizable divider
+// ──────────────────────────────────────────────────────────────
+const divider = document.getElementById('divider');
+const paneLeft = document.getElementById('paneLeft');
+let dragging = false, startX, startW;
+
+divider.addEventListener('mousedown', e => {
+  dragging = true;
+  startX = e.clientX;
+  startW = paneLeft.offsetWidth;
+  divider.classList.add('dragging');
+  document.body.style.userSelect = 'none';
+  document.body.style.cursor = 'col-resize';
+});
+
+window.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const dx = e.clientX - startX;
+  const mainW = document.getElementById('main').offsetWidth;
+  const newW = Math.max(200, Math.min(mainW - 200, startW + dx));
+  paneLeft.style.width = newW + 'px';
+  paneLeft.style.flex = 'none';
+});
+
+window.addEventListener('mouseup', () => {
+  if (dragging) {
+    dragging = false;
+    divider.classList.remove('dragging');
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+  }
+});
+</script>
+</body>
+</html>
